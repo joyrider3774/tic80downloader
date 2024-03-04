@@ -8,7 +8,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.FileOutputStream;
 import java.io.OutputStream;
 import java.io.StringWriter;
-import java.net.URL;
+import java.net.*;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -259,7 +259,7 @@ static class StringUtils {
 	private static String downloadAndCrc32(String url, OutputStream os) throws Exception
 	{
 		CRC32 c = new CRC32();
-		try (BufferedInputStream in = new BufferedInputStream(new URL(url).openStream())) {
+		try (BufferedInputStream in = new BufferedInputStream(URI.create(url).toURL().openStream())) {
 		    byte dataBuffer[] = new byte[1024];
 		    int bytesRead;
 		    while ((bytesRead = in.read(dataBuffer, 0, 1024)) != -1) {
@@ -289,42 +289,59 @@ static class StringUtils {
 
 	private static String nameToFile(String s)
 	{
-		s = s.replace(' ', '.');
-		s = s.replaceAll("[^a-zA-Z0-9\\.]", "");
+    s = s.replaceAll("[^a-zA-Z0-9 \\ ]", "");
+		while(s.contains("  "))
+      s = s.replace("  ", " ");
 		return s.toLowerCase()+".tic";
 	}
 	
 	public static void main(String[] args) throws Exception 
 	{
-		System.out.println("Fetching main play page..");
-		String s = downloadPage("https://tic.computer/play");
-		List<String> items = new ArrayList<>();
-		while(true)
-		{
-			String introtoken = "<div class=\"col-md-4\"><div class=\"cart\">";
-			int i = s.indexOf(introtoken, 0);
-			if (i>=0) {
-				s = s.substring(i+introtoken.length());
-				String id = escape( StringUtils.getStringBetween(s, "<a href=\"/play?cart=", "\"><img", true, true));
-				String hash = escape( StringUtils.getStringBetween(s, "src=\"/cart/", "/cover.gif", true, true) );
-				String name = escape( StringUtils.getStringBetween(s, "<h2>", "</h2>", true, true));
-				String by = escape( StringUtils.getStringBetween(s, "<div class=\"text-muted\">by ", "</div>", true, true));
-				String fileName = nameToFile(name);
-				String url = "https://tic.computer/cart/"+hash+"/cart.tic";
-				
-				
-				System.out.println("Downloading "+name + " to "+fileName);
-				String crc = downloadAndCrc32(url, fileName);
-				
-				items.add(String.join("\t", notab(id), notab(hash), notab(name), notab(by), notab(fileName), notab(crc), notab(url)));
-				
-			}
-			else
-			{
-				break;
-			}
-		}
-		Files.write(Paths.get("tic80.tsv"), items);
+    List<String> items = new ArrayList<>();
+		int j = -1;
+    String s;
+    while(true)
+    {
+      j++;
+      System.out.println("Fetching page " + (j + 1));
+      try 
+      {
+        s = downloadPage("https://tic80.com/play?cat=0&sort=2&page=" + j);
+      }
+      catch(Exception e) 
+      {
+        break;
+      }
+      
+            
+      while(true)
+      {
+        String introtoken = "<div class=\"col-md-4\"><div class=\"cart\">";
+        int i = s.indexOf(introtoken, 0);
+        if (i>=0) {
+          s = s.substring(i+introtoken.length());
+          String id = escape( StringUtils.getStringBetween(s, "<a href=\"/play?cart=", "\"><img", true, true));
+          String hash = escape( StringUtils.getStringBetween(s, "src=\"/cart/", "/cover.gif", true, true) );
+          String name = escape( StringUtils.getStringBetween(s, "<h2>", "</h2>", true, true));
+          String by = escape( StringUtils.getStringBetween(s, "<div class=\"text-muted\">by ", "</div>", true, true));
+          String fileName = nameToFile(name);
+          String url = "https://tic80.com/cart/"+hash+"/cart.tic";
+          
+          
+          System.out.println("Downloading "+name + " to "+fileName);
+          String crc = downloadAndCrc32(url, fileName);
+          
+          items.add(String.join("\t", notab(id), notab(hash), notab(name), notab(by), notab(fileName), notab(crc), notab(url)));
+          
+        }
+        else
+        {
+          break;
+        }
+      }
+      
+    }
+    Files.write(Paths.get("tic80.tsv"), items);
 	}
 
 	private static CharSequence notab(String s) {
